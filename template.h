@@ -5,7 +5,48 @@
  */
 typedef long long llong;
 
+/**
+ * Infinity for int.
+ */
+const int INF = 1E9;
+
+/**
+ * Infinity for llong.
+ */
+const llong INFLL = 2E18;
+
+namespace allocator {
+
+/**
+ * Array allocator.
+ */
+template <typename T, int MAXSIZE>
+struct array {
+  T v[MAXSIZE], *top;
+  array() : top(v) {}
+  T *alloc(const T &val = T()) { return &(*top++ = val); }
+  void dealloc(T *p) {}
+};
+
+/**
+ * Stack-based array allocator.
+ */
+template <typename T, int MAXSIZE>
+struct stack {
+  T v[MAXSIZE];
+  T *spot[MAXSIZE], **top;
+  stack() {
+    for (int i = 0; i < MAXSIZE; ++i) spot[i] = v + i;
+    top = spot + MAXSIZE;
+  }
+  T *alloc(const T &val = T()) { return &(**--top = val); }
+  void dealloc(T *p) { *top++ = p; }
+};
+
+}  // namespace allocator
+
 namespace graph {
+
 /**
  * Representation of an edge.
  */
@@ -107,15 +148,18 @@ struct reversible_node : node<T> {
   }
 };
 
-template <typename T, int MAXSIZE = 500000>
+template <typename T, int MAXSIZE = 500000,
+          typename alloc = allocator::array<T, MAXSIZE + 2>>
 struct tree {
-  T pool[MAXSIZE + 2];
+  alloc pool;
   T *root;
-  int size;
+  /**
+   * Get a new node from the pool.
+   */
+  T *new_node(const T &val = T()) { return pool.alloc(val); }
   tree() {
-    size = 2;
-    root = pool, root->c[1] = pool + 1, root->size = 2;
-    pool[1].f = root;
+    root = new_node(), root->c[1] = new_node(), root->size = 2;
+    root->c[1]->f = root;
   }
   /**
    * Helper function to rotate node.
@@ -145,9 +189,9 @@ struct tree {
     if (!s) root = n;
   }
   /**
-   * Get a new node from the pool.
+   * Get the size of the tree.
    */
-  T *new_node() { return pool + size++; }
+  int size() { return root->size - 2; }
   /**
    * Helper function to walk down the tree.
    */
@@ -184,10 +228,37 @@ struct tree {
    * Find the range [posl, posr) on the splay tree.
    */
   T *find_range(int posl, int posr) {
-    T *l = find(posl - 1), *r = find(posr, false);
-    splay(r, l);
-    if (r->c[0]) r->c[0]->push_down();
-    return r->c[0];
+    T *r = find(posr), *l = find(posl - 1, false);
+    splay(l, r);
+    if (l->c[1]) l->c[1]->push_down();
+    return l->c[1];
+  }
+  /**
+   * Insert nn of size nn_size to position pos.
+   */
+  void insert_range(T **nn, int nn_size, int pos) {
+    T *r = find(pos), *l = find(pos - 1, false), *c = l;
+    splay(l, r);
+    for (int i = 0; i < nn_size; ++i) c->c[1] = nn[i], nn[i]->f = c, c = nn[i];
+    for (int i = nn_size - 1; i >= 0; --i) nn[i]->update();
+    l->update(), r->update(), splay(nn[nn_size - 1]);
+  }
+  /**
+   * Helper function to dealloc a subtree.
+   */
+  void dealloc(T *n) {
+    if (!n) return;
+    dealloc(n->c[0]);
+    dealloc(n->c[1]);
+    pool.dealloc(n);
+  }
+  /**
+   * Remove from position [posl, posr).
+   */
+  void erase_range(int posl, int posr) {
+    T *n = find_range(posl, posr);
+    n->f->c[1] = nullptr, n->f->update(), n->f->f->update(), n->f = nullptr;
+    dealloc(n);
   }
 };
 

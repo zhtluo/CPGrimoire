@@ -1,9 +1,10 @@
 #include "../template.h"
 
-graph<> g;
+graph::graph<> g;
 
 int main() {
-  for (int i = 0; i < 20; ++i) g.add_edge(edge(rand() % 10, rand() % 10));
+  for (int i = 0; i < 20; ++i)
+    g.add_edge(graph::edge(rand() % 10, rand() % 10));
   for (int i = 0; i < 20; ++i) printf("%d %d\n", g.edge[i].u, g.edge[i].v);
   puts("");
   g.format(10);
